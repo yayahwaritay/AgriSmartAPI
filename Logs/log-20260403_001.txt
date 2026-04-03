@@ -342,3 +342,6 @@ Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving 
 2026-04-03 10:34:01.166 +00:00 [INF] AgriSmart API starting up...
 2026-04-03 10:34:02.784 +00:00 [INF] HTTP GET /swagger/index.html responded 200 in 677.1268 ms
 2026-04-03 10:34:03.911 +00:00 [INF] HTTP GET /swagger/v1/swagger.json responded 200 in 597.5835 ms
+2026-04-03 10:59:41.048 +00:00 [INF] AgriSmart API starting up...
+2026-04-03 10:59:42.242 +00:00 [INF] HTTP GET /swagger/index.html responded 200 in 563.3321 ms
+2026-04-03 10:59:43.363 +00:00 [INF] HTTP GET /swagger/v1/swagger.json responded 200 in 565.2687 ms

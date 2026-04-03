@@ -148,13 +148,17 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("HealthChecks:Enabled"))
+var swaggerEnabled = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:EnableInProduction");
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "AgriSmart API V1");
         c.RoutePrefix = "swagger";
+        c.DocumentTitle = "AgriSmart API Documentation";
+        c.DisplayOperationId();
+        c.DisplayRequestDuration();
     });
 }
 
