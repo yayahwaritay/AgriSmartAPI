@@ -138,7 +138,7 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<AgriSmartContext>("postgres");
 
 var app = builder.Build();
-
+app.UsePathBase("/api");
 app.UseSerilogRequestLogging(options =>
 {
     options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
@@ -151,10 +151,15 @@ app.UseSerilogRequestLogging(options =>
 var swaggerEnabled = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:EnableInProduction");
 if (swaggerEnabled)
 {
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                           Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+    });
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "AgriSmart API V1");
+        c.SwaggerEndpoint("./v1/swagger.json", "AgriSmart API V1");
         c.RoutePrefix = "swagger";
         c.DocumentTitle = "AgriSmart API Documentation";
         c.DisplayOperationId();
