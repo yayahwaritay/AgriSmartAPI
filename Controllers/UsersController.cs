@@ -1,279 +1,119 @@
-using AgriSmartAPI.DTO;
-using AgriSmartAPI.Services.Interfaces;
+using AgriSmartSierra.Application.DTOs;
+using AgriSmartSierra.Application.DTOs.Common;
+using AgriSmartSierra.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
-namespace AgriSmartAPI.Controllers;
+namespace AgriSmartSierra.Controllers;
 
 [ApiController]
-[Route("api/v1/users")]
+[Route("api/[controller]")]
 [Authorize]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly ILogger<UsersController> _logger;
+    private readonly IFarmerProfileService _farmerProfileService;
+    private readonly IBuyerProfileService _buyerProfileService;
+    private readonly IAgronomistProfileService _agronomistProfileService;
 
-    public UsersController(IUserService userService, ILogger<UsersController> logger)
+    public UsersController(
+        IUserService userService,
+        IFarmerProfileService farmerProfileService,
+        IBuyerProfileService buyerProfileService,
+        IAgronomistProfileService agronomistProfileService)
     {
         _userService = userService;
-        _logger = logger;
+        _farmerProfileService = farmerProfileService;
+        _buyerProfileService = buyerProfileService;
+        _agronomistProfileService = agronomistProfileService;
     }
 
-    private int GetUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-            throw new UnauthorizedAccessException("User ID not found in token");
-        return userId;
-    }
-
-    private string GetUserRole()
-    {
-        return User.FindFirst(ClaimTypes.Role)?.Value ?? "";
-    }
-
-    [HttpGet]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetAllUsers()
-    {
-        try
-        {
-            var users = await _userService.GetAllUsersAsync();
-            return Ok(new
-            {
-                message = "Users retrieved successfully",
-                users = users,
-                status = 1
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving all users");
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to retrieve users",
-                detail = ex.Message
-            });
-        }
-    }
-
-    [HttpGet("me")]
-    public async Task<IActionResult> GetMyProfile()
-    {
-        try
-        {
-            var userId = GetUserId();
-            var profile = await _userService.GetUserProfileAsync(userId);
-            return Ok(new
-            {
-                message = "Profile retrieved successfully",
-                profile = profile,
-                status = 1
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving user profile");
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to retrieve profile",
-                detail = ex.Message
-            });
-        }
-    }
+    private Guid GetUserId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? Guid.Empty.ToString());
 
     [HttpGet("{id}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetUserById(int id)
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetById(Guid id)
     {
-        try
-        {
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user == null)
-                return NotFound(new { message = "User not found" });
-
-            return Ok(new
-            {
-                message = "User retrieved successfully",
-                user = user,
-                status = 1
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving user {UserId}", id);
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to retrieve user",
-                detail = ex.Message
-            });
-        }
-    }
-
-    [HttpGet("username/{username}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetUserByUsername(string username)
-    {
-        try
-        {
-            var user = await _userService.GetUserByUsernameAsync(username);
-            if (user == null)
-                return NotFound(new { message = "User not found" });
-
-            return Ok(new
-            {
-                message = "User retrieved successfully",
-                user = user,
-                status = 1
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving user by username {Username}", username);
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to retrieve user",
-                detail = ex.Message
-            });
-        }
-    }
-
-    [HttpPut("me")]
-    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateUserRequest request)
-    {
-        try
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var userId = GetUserId();
-            var updatedUser = await _userService.UpdateUserAsync(userId, request);
-
-            return Ok(new
-            {
-                message = "Profile updated successfully",
-                user = updatedUser,
-                status = 1
-            });
-        }
-        catch (ValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating user profile");
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to update profile",
-                detail = ex.Message
-            });
-        }
-    }
-
-    [HttpPut("me/password")]
-    public async Task<IActionResult> ChangeMyPassword([FromBody] ChangePasswordRequest request)
-    {
-        try
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var userId = GetUserId();
-            var result = await _userService.ChangePasswordAsync(userId, request);
-
-            return Ok(new
-            {
-                message = "Password changed successfully",
-                status = 1
-            });
-        }
-        catch (ValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error changing password");
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to change password",
-                detail = ex.Message
-            });
-        }
+        var result = await _userService.GetByIdAsync(id);
+        return Ok(result);
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<ApiResponse<UserDto>>> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
-        try
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var updatedUser = await _userService.UpdateUserAsync(id, request);
-
-            return Ok(new
-            {
-                message = "User updated successfully",
-                user = updatedUser,
-                status = 1
-            });
-        }
-        catch (ValidationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating user {UserId}", id);
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to update user",
-                detail = ex.Message
-            });
-        }
+        var result = await _userService.UpdateAsync(id, dto);
+        return Ok(result);
     }
 
-    [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> DeleteUser(int id)
+    [HttpGet("profile/farmer")]
+    public async Task<ActionResult<ApiResponse<FarmerProfileDto>>> GetFarmerProfile()
     {
-        try
-        {
-            var currentUserId = GetUserId();
-            if (currentUserId == id)
-                return BadRequest(new { message = "You cannot delete your own account" });
+        var userId = GetUserId();
+        var result = await _farmerProfileService.GetByUserIdAsync(userId);
+        return Ok(result);
+    }
 
-            var result = await _userService.DeleteUserAsync(id);
-            if (!result)
-                return NotFound(new { message = "User not found" });
+    [HttpPost("profile/farmer")]
+    public async Task<ActionResult<ApiResponse<FarmerProfileDto>>> CreateFarmerProfile([FromBody] CreateFarmerProfileDto dto)
+    {
+        var userId = GetUserId();
+        var result = await _farmerProfileService.CreateAsync(userId, dto);
+        return Ok(result);
+    }
 
-            return Ok(new
-            {
-                message = "User deleted successfully",
-                status = 1
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting user {UserId}", id);
-            return StatusCode(500, new
-            {
-                statusCode = 500,
-                message = "Failed to delete user",
-                detail = ex.Message
-            });
-        }
+    [HttpPut("profile/farmer/{id}")]
+    public async Task<ActionResult<ApiResponse<FarmerProfileDto>>> UpdateFarmerProfile(Guid id, [FromBody] CreateFarmerProfileDto dto)
+    {
+        var result = await _farmerProfileService.UpdateAsync(id, dto);
+        return Ok(result);
+    }
+
+    [HttpGet("profile/buyer")]
+    public async Task<ActionResult<ApiResponse<BuyerProfileDto>>> GetBuyerProfile()
+    {
+        var userId = GetUserId();
+        var result = await _buyerProfileService.GetByUserIdAsync(userId);
+        return Ok(result);
+    }
+
+    [HttpPost("profile/buyer")]
+    public async Task<ActionResult<ApiResponse<BuyerProfileDto>>> CreateBuyerProfile([FromBody] CreateBuyerProfileDto dto)
+    {
+        var userId = GetUserId();
+        var result = await _buyerProfileService.CreateAsync(userId, dto);
+        return Ok(result);
+    }
+
+    [HttpGet("profile/agronomist")]
+    public async Task<ActionResult<ApiResponse<AgronomistProfileDto>>> GetAgronomistProfile()
+    {
+        var userId = GetUserId();
+        var result = await _agronomistProfileService.GetByUserIdAsync(userId);
+        return Ok(result);
+    }
+
+    [HttpPost("profile/agronomist")]
+    public async Task<ActionResult<ApiResponse<AgronomistProfileDto>>> CreateAgronomistProfile([FromBody] CreateAgronomistProfileDto dto)
+    {
+        var userId = GetUserId();
+        var result = await _agronomistProfileService.CreateAsync(userId, dto);
+        return Ok(result);
+    }
+
+    [HttpGet("agronomists/verified")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IEnumerable<AgronomistProfileDto>>>> GetVerifiedAgronomists()
+    {
+        var result = await _agronomistProfileService.GetVerifiedAsync();
+        return Ok(result);
+    }
+
+    [HttpGet("agronomists")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IEnumerable<AgronomistProfileDto>>>> GetAgronomistsByArea([FromQuery] string area)
+    {
+        var result = await _agronomistProfileService.GetByServiceAreaAsync(area);
+        return Ok(result);
     }
 }

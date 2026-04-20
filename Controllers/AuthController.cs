@@ -1,12 +1,12 @@
-﻿using AgriSmartAPI.DTO;
-using AgriSmartAPI.Models;
-using AgriSmartAPI.Services.Interfaces;
+using AgriSmartSierra.Application.DTOs;
+using AgriSmartSierra.Application.DTOs.Common;
+using AgriSmartSierra.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace AgriSmartAPI.Controllers;
+namespace AgriSmartSierra.Controllers;
 
-[Route("api/[controller]")]
 [ApiController]
+[Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -17,22 +17,16 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<User>> Register([FromBody] RegisterModel registerModel)
+    public async Task<ActionResult<ApiResponse<LoginResponseDto>>> Register([FromBody] RegisterRequestDto request)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var user = await _authService.Register(registerModel);
-        return CreatedAtAction(nameof(Login), new { username = user.Username }, user);
+        var result = await _authService.RegisterAsync(request);
+        return Ok(result);
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
+    public async Task<ActionResult<ApiResponse<LoginResponseDto>>> Login([FromBody] LoginRequestDto request)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var token = await _authService.Login(loginModel);
-        return Ok(new { Token = token, username = loginModel.Username, status = 1 });
+        var result = await _authService.LoginAsync(request);
+        return Ok(result);
     }
 }

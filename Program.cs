@@ -1,59 +1,48 @@
-using AgriSmartAPI.Data;
-using AgriSmartAPI.Middleware;
-using AgriSmartAPI.Services.Interfaces;
-using AgriSmartAPI.Services;
+using AgriSmartSierra.Application.Interfaces;
+using AgriSmartSierra.Application.Services;
+using AgriSmartSierra.Domain.Interfaces;
+using AgriSmartSierra.Infrastructure.Data;
+using AgriSmartSierra.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Npgsql;
 using Serilog;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .CreateLogger();
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.ReadFrom.Configuration(context.Configuration));
 
-builder.Host.UseSerilog();
+builder.Services.AddDbContext<AgriSmartDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-        options.JsonSerializerOptions.WriteIndented = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "AgriSmartSierra",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "AgriSmartSierra",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "YourSecretKeyHere12345678901234567890"))
+        };
     });
 
-builder.Services.AddDbContext<AgriSmartContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-    {
-        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(10), null);
-        npgsqlOptions.CommandTimeout(30);
-    });
-});
+builder.Services.AddAuthorization();
 
-builder.Services.AddHttpClient();
-
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
-
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "AgriSmart API",
-        Version = "v1",
-        Description = "API for AgriSmart Agricultural Platform"
-    });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "AgriSmart Sierra API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme",
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -71,123 +60,65 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"] ?? throw new InvalidOperationException("JWT Key not configured");
-var jwtIssuer = jwtSection["Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
-var jwtAudience = jwtSection["Audience"] ?? throw new InvalidOperationException("JWT Audience not configured");
-var jwtExpiryMinutes = jwtSection["ExpiryInMinutes"] ?? "60";
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IFarmerProfileRepository, FarmerProfileRepository>();
+builder.Services.AddScoped<IBuyerProfileRepository, BuyerProfileRepository>();
+builder.Services.AddScoped<IAgronomistProfileRepository, AgronomistProfileRepository>();
+builder.Services.AddScoped<ICropRepository, CropRepository>();
+builder.Services.AddScoped<IFarmRepository, FarmRepository>();
+builder.Services.AddScoped<ICropActivityRepository, CropActivityRepository>();
+builder.Services.AddScoped<IPestReportRepository, PestReportRepository>();
+builder.Services.AddScoped<IWeatherLogRepository, WeatherLogRepository>();
+builder.Services.AddScoped<IMarketplaceListingRepository, MarketplaceListingRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IForumPostRepository, ForumPostRepository>();
+builder.Services.AddScoped<IForumCommentRepository, ForumCommentRepository>();
+builder.Services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
+builder.Services.AddScoped<IInsuranceInfoRepository, InsuranceInfoRepository>();
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        ClockSkew = TimeSpan.Zero
-    };
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            Log.Warning("Authentication failed: {Message}", context.Exception.Message);
-            return Task.CompletedTask;
-        },
-        OnTokenValidated = context =>
-        {
-            Log.Debug("Token validated for user: {User}", context.Principal?.Identity?.Name);
-            return Task.CompletedTask;
-        }
-    };
-});
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IFarmerProfileService, FarmerProfileService>();
+builder.Services.AddScoped<IBuyerProfileService, BuyerProfileService>();
+builder.Services.AddScoped<IAgronomistProfileService, AgronomistProfileService>();
+builder.Services.AddScoped<ICropService, CropService>();
+builder.Services.AddScoped<IFarmService, FarmService>();
+builder.Services.AddScoped<ICropActivityService, CropActivityService>();
+builder.Services.AddScoped<IWeatherService, WeatherService>();
+builder.Services.AddScoped<IResourceCalculatorService, ResourceCalculatorService>();
+builder.Services.AddScoped<IPestReportService, PestReportService>();
+builder.Services.AddScoped<IMLPredictionService, MLPredictionService>();
+builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<ICropPriceService, CropPriceService>();
+builder.Services.AddScoped<IForumService, ForumService>();
+builder.Services.AddScoped<ILoanService, LoanService>();
+builder.Services.AddScoped<IInsuranceService, InsuranceService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
-builder.Services.AddAuthorization();
-
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddProblemDetails();
-
-var corsOrigins = builder.Configuration["Cors:AllowedOrigins"]?.Split(',') ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("ProductionCors", policy =>
-    {
-        policy.WithOrigins(corsOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials()
-            .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
-    });
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
-
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AgriSmartContext>("postgres");
 
 var app = builder.Build();
 
-app.UseSerilogRequestLogging(options =>
-{
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
-        diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
-    };
-});
+app.UseSerilogRequestLogging();
 
-var swaggerEnabled = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:EnableInProduction");
-if (swaggerEnabled)
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "AgriSmart API V1");
-        c.RoutePrefix = "swagger";
-        c.DocumentTitle = "AgriSmart API Documentation";
-        c.DisplayOperationId();
-        c.DisplayRequestDuration();
-    });
+    app.UseSwaggerUI();
 }
 
-app.UseExceptionHandler();
-
-app.UseStatusCodePages();
-
-app.UseHttpsRedirection();
-
-app.UseCors(app.Environment.IsDevelopment() ? "AllowAllOrigins" : "ProductionCors");
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    ResponseWriter = async (context, report) =>
-    {
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
-        {
-            Status = report.Status.ToString(),
-            Timestamp = DateTime.UtcNow
-        }));
-    }
-});
-
-Log.Information("AgriSmart API starting up...");
 
 app.Run();
